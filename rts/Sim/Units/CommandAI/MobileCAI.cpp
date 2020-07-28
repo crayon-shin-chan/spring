@@ -357,11 +357,11 @@ void CMobileCAI::Execute()
 	Command& c = commandQue.front();
 
 	switch (c.GetID()) {
-		case CMD_MOVE:                 { ExecuteMove(c);				return; }
-		case CMD_PATROL:               { ExecutePatrol(c);				return; }
-		case CMD_FIGHT:                { ExecuteFight(c);				return; }
-		case CMD_GUARD:                { ExecuteGuard(c);				return; }
-		case CMD_LOAD_ONTO:            { ExecuteLoadOnto(c);			return; }
+		case CMD_MOVE:      { ExecuteMove(c);     return; }
+		case CMD_PATROL:    { ExecutePatrol(c);   return; }
+		case CMD_FIGHT:     { ExecuteFight(c);    return; }
+		case CMD_GUARD:     { ExecuteGuard(c);    return; }
+		case CMD_LOAD_ONTO: { ExecuteLoadOnto(c); return; }
 	}
 
 	if (owner->unitDef->IsTransportUnit()) {
@@ -426,22 +426,25 @@ void CMobileCAI::ExecuteLoadOnto(Command& c) {
 	}
 
 	// prevent <owner> from chasing after full transports, etc
-	if (!transport->unitDef->IsTransportUnit() || !transport->CanTransport(owner)) {
+	if (!transport->CanTransport(owner)) {
 		StopMoveAndFinishCommand();
 		return;
 	}
 
 	if (!inCommand) {
 		inCommand = true;
-		transport->commandAI->GiveCommandReal(Command(CMD_LOAD_UNITS, INTERNAL_ORDER | SHIFT_KEY, owner->id));
+		// order transport to load <owner> before resuming its own queue
+		transport->commandAI->commandQue.push_front(Command(CMD_LOAD_UNITS, INTERNAL_ORDER | SHIFT_KEY, owner->id));
 	}
 
-	if (owner->GetTransporter() != nullptr) {
-		assert(!commandQue.empty()); // <c> should still be in front
+	if (owner->GetTransporter() == transport) {
+		// owner already loaded; <c> should still be in front of queue
+		assert(!commandQue.empty());
 		StopMoveAndFinishCommand();
 		return;
 	}
 
+	// owner not loaded yet, stand still or move closer
 	if ((owner->pos - transport->pos).SqLength2D() < cancelDistance) {
 		StopMove();
 	} else {
@@ -978,12 +981,6 @@ void CMobileCAI::StopMove()
 	owner->moveType->StopMoving();
 }
 
-void CMobileCAI::StopMoveAndFinishCommand()
-{
-	StopMove();
-	FinishCommand();
-}
-
 void CMobileCAI::StopMoveAndKeepPointing(const float3& p, const float r, bool b)
 {
 	StopMove();
@@ -1066,6 +1063,7 @@ void CMobileCAI::FinishCommand()
 		lastUserGoal = owner->pos;
 
 	tempOrder = false;
+
 	StopSlowGuard();
 	CCommandAI::FinishCommand();
 
@@ -1291,6 +1289,7 @@ void CMobileCAI::ExecuteLoadUnits(Command& c)
 			}
 
 			if (c.IsInternalOrder()) {
+				// internally issued by MobileCAI
 				if (unit->commandAI->commandQue.empty()) {
 					if (!LoadStillValid(unit)) {
 						StopMoveAndFinishCommand();

@@ -55,10 +55,8 @@
 #endif
 
 
-using netcode::RawPacket;
-using std::string;
-
 CONFIG(bool, DemoFromDemo).defaultValue(false);
+CONFIG(bool, LoadBadSaves).defaultValue(false);
 
 static char mapChecksumMsgBuf[1024] = {0};
 static char modChecksumMsgBuf[1024] = {0};
@@ -121,9 +119,22 @@ void CPreGame::LoadSaveFile(const std::string& save)
 	assert(clientSetup->isHost);
 
 	saveFileHandler = ILoadSaveHandler::CreateHandler(save);
-	saveFileHandler->LoadGameStartInfo(save);
 
-	StartServer(saveFileHandler->GetScriptText());
+	if (saveFileHandler->LoadGameStartInfo(save) || configHandler->GetBool("LoadBadSaves")) {
+		StartServer(saveFileHandler->GetScriptText());
+		return;
+	}
+
+	LOG_L(L_ERROR, "[PreGame::%s] incompatible save-file specified", __func__);
+
+	if (CLuaMenuController::ActivateInstance("[PreGame] incompatible save-file")) {
+		assert(pregame == this);
+		spring::SafeDelete(pregame);
+		return;
+	}
+
+	spring::exitCode = spring::EXIT_CODE_BADSAVE;
+	gu->globalQuit = true;
 }
 
 int CPreGame::KeyPressed(int k, bool isRepeat)
@@ -283,14 +294,14 @@ void CPreGame::UpdateClientNet()
 			return;
 		}
 
-		LOG_L(L_ERROR, "[PreGame] Server Connection Timeout");
+		LOG_L(L_ERROR, "[PreGame::%s] server connection timeout", __func__);
 
 		spring::exitCode = spring::EXIT_CODE_TIMEOUT;
 		gu->globalQuit = true;
 		return;
 	}
 
-	std::shared_ptr<const RawPacket> packet;
+	std::shared_ptr<const netcode::RawPacket> packet;
 
 	while ((packet = clientNet->GetData(gs->frameNum))) {
 		const unsigned char* inbuf = packet->data;

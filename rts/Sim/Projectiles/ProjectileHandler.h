@@ -11,7 +11,7 @@
 #include "System/float3.h"
 
 // bypass id and event handling for unsynced projectiles (faster)
-#define UNSYNCED_PROJ_NOEVENT 1
+#define PH_UNSYNCED_PROJECTILE_EVENTS 0
 
 class CProjectile;
 class CUnit;
@@ -61,10 +61,10 @@ public:
 		return std::min(1.0f, fract);
 	}
 
-	int   GetCurrentParticles() const;
+	int GetCurrentParticles() const;
 
 	void AddProjectile(CProjectile* p);
-	void AddGroundFlash(CGroundFlash* flash);
+	void AddGroundFlash(CGroundFlash* flash) { groundFlashes.push_back(flash); }
 	void AddFlyingPiece(
 		const S3DModel* model,
 		const S3DModelPiece* piece,
@@ -98,8 +98,17 @@ public:
 	GroundFlashContainer groundFlashes;
 
 private:
-	void UpdateProjectileContainer(bool);
+	// event-notifiers
+	void CreateProjectile(CProjectile*);
+	void DestroyProjectile(CProjectile*);
 
+	void UpdateProjectiles(bool);
+	void UpdateProjectiles() {
+		UpdateProjectiles( true);
+		UpdateProjectiles(false);
+	}
+
+private:
 	// [0] := available unsynced projectile ID's
 	// [1] := available synced (weapon, piece) projectile ID's
 	std::vector<int> freeProjectileIDs[2];

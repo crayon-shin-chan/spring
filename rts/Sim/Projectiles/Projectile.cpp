@@ -25,8 +25,9 @@ CR_REG_METADATA(CProjectile,
 	CR_MEMBER(luaMoveCtrl),
 	CR_MEMBER(checkCol),
 	CR_MEMBER(ignoreWater),
+
+	CR_IGNORED(createMe),
 	CR_MEMBER(deleteMe),
-	CR_IGNORED(callEvent), // we want the render event called for all projectiles
 
 	CR_MEMBER(castShadow),
 	CR_MEMBER(drawSorted),
